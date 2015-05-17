@@ -4,16 +4,17 @@ window.onload = function(){
 	
 	var bmt = require('./bitmaptools.js');
 	
-	var player, enemies, spawnEnemyTimer, sprites, keys, playerCollisionGroup, enemyCollisionGroup, restartText;
+	var player, enemies, stars, spawnEnemyTimer, bmds, keys, playerCollisionGroup, enemyCollisionGroup, restartText;
 
 	function preload(){	
 		bmt.setGame(game);
 	
 		game.stage.backgroundColor = '#111111';
 		
-		sprites = {
-			redTriangle: bmt.drawIsoTriangle(0, 0, 40, 30, '#ffffff', '#ff0000', 0),
-			blueTriangle: bmt.drawIsoTriangle(0, 0, 40, 30, '#ffffff', '#0000ff', 0)
+		bmds = {
+			redTriangle: bmt.drawIsoTriangle(0, 0, 40, 30, '#ffffff', '#ff0000', 0, true),
+			blueTriangle: bmt.drawIsoTriangle(0, 0, 40, 30, '#ffffff', '#0000ff', 0, true),
+			star: bmt.drawRect(0, 0, 4, 4, 'clear', '#F5F5DC', 0, true)
 		};
 	}
 
@@ -24,27 +25,40 @@ window.onload = function(){
 		playerCollisionGroup = game.physics.p2.createCollisionGroup();
 		enemyCollisionGroup = game.physics.p2.createCollisionGroup();
 		
-		keys = {};
-		keys.space = game.input.keyboard.addKey(Phaser.Keyboard.SPACEBAR);
+		keys = {space: game.input.keyboard.addKey(Phaser.Keyboard.SPACEBAR)};
 		
-		player = game.make.sprite(game.width / 2, game.height, sprites.redTriangle);
+		player = game.add.sprite(game.width / 2, game.height, bmds.redTriangle);
 		player.isDying = false;
-		game.world.add(player);
 		
 		game.physics.p2.enableBody(player);
 		player.body.clearShapes();
-		player.body.addPolygon({}, sprites.redTriangle.polygon.toNumberArray());
+		player.body.addPolygon({}, bmds.redTriangle.polygons[0].toNumberArray());
 		player.body.fixedRotation = true;
 		player.body.setCollisionGroup(playerCollisionGroup);
 		player.body.collides([enemyCollisionGroup], playerDeath);
 		
-		enemies = game.make.group();
-		enemies.enableBody = true;
-		enemies.physicsBodyType = Phaser.Physics.P2JS;
-		game.world.add(enemies);
+		enemies = game.add.group(game.world, 'enemies', false, true, Phaser.Physics.P2JS);
+		
+		stars = game.add.group(game.world, 'stars', false, true, Phaser.Physics.P2JS);
+		var starCount = 10;
+		var starMod = game.height / starCount;
+		for(var i = 0;i<starCount;i++){
+			var star = game.make.sprite(game.rnd.between(0, game.width), starMod * i + game.rnd.between(0, starMod), bmds.star);
+			stars.add(star);
+			star.body.velocity.y = game.rnd.between(1, 100);
+			star.body.collideWorldBounds = false;
+			star.events.onKilled.add(spawnStar);
+		}
 		
 		restartText = {style: {font: '65px Arial', fill:'#FFFFFF', align:'center'}};
 		restartText = game.make.text(0, game.height / 4, "Error", restartText.style);
+		
+		restartText.z = 0;
+		player.z = 1;
+		enemies.z = 2;
+		stars.z = 3;
+		
+		game.world.sort('z', Phaser.Group.SORT_DESCENDING);
 		
 		startGame();
 	}
@@ -58,6 +72,22 @@ window.onload = function(){
 				enemy.kill();
 			}
 		});
+		stars.forEachAlive(function(star){
+			if(star.y > game.height + star.height / 2){
+				star.kill();
+			}
+		});
+	}
+	
+	function spawnStar(){
+		var star = stars.getFirstDead();
+		if(!star){
+			stars.add(makeStar);
+			star = stars.getFirstDead();
+		}
+		star.revive();
+		star.body.reset(game.rnd.between(0, game.width), -star.height);
+		star.body.velocity.y = game.rnd.between(1, 100);
 	}
 	
 	function render(){
@@ -126,12 +156,12 @@ window.onload = function(){
 	}
 
 	function makeEnemy(){
-		var enemy = game.make.sprite(0,0, sprites.blueTriangle);
+		var enemy = game.make.sprite(0,0, bmds.blueTriangle);
 		enemy.kill();
 		game.physics.p2.enableBody(enemy);
 		enemy.body.damping = 0;
 		enemy.body.clearShapes();
-		enemy.body.addPolygon({}, sprites.blueTriangle.polygon.toNumberArray());
+		enemy.body.addPolygon({}, bmds.blueTriangle.polygons[0].toNumberArray());
 		enemy.body.fixedRotation = true;
 		enemy.body.collideWorldBounds = false;
 		enemy.body.setCollisionGroup(enemyCollisionGroup);
